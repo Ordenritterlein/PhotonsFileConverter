@@ -5,6 +5,11 @@
 	<meta charset="utf-8">
 	<title>Photon to Photons converter</title>
 	<script type="text/javascript" src="libs/bit-array.js"></script>
+
+	<script type="text/javascript" src="thumbnailSource\bigThumb.js"></script>
+	<script type="text/javascript" src="thumbnailSource\smallThumb.js"></script>
+	<script type="text/javascript" src="thumbnailSource\SThumb.js"></script>
+
 	<style>
 		#attribution p{
 			margin: 12px;
@@ -157,6 +162,11 @@
 					newFile.setUint32(90, 168, false);
 					newFile.setUint32(94, 10, false);
 					// preview image goes here, but I'm just not gonna scale it for now
+					for(i = 0; i < (sThumb_string.length/2); i++){
+						index = i*2;
+						newFile.setUint8(98 + i, parseInt("0x" + sThumb_string.charAt(index) + sThumb_string.charAt(index+1)));
+					}
+					//
 					newFile.setUint32(75362, numLayers, false);
 					// new Layers
 					currPos = 75366;
@@ -263,9 +273,14 @@
 				for(i = 0; i < photonLayers.length; i++){
 					numBytesLayers += photonLayers[i].length;
 				}
-				newFileArrayBuffer = new ArrayBuffer(64 + 108 + numBytesLayers + 36*inLayers.length + 16);
+				let bigThumbByteLength = bigThumb_string.length/2;
+				let smallThumbByteLength = smallThumb_string.length/2;
+				newFileArrayBuffer = new ArrayBuffer(64 + 108 + numBytesLayers + 36*inLayers.length + bigThumbByteLength + smallThumbByteLength);
 				newFile = new DataView(newFileArrayBuffer);
 				currPos = 0;
+
+				newFile.setUint32(0, 318570521, true);
+				newFile.setUint32(4, 1, true);
 
 				newFile.setFloat32(8, 68.04, true);
 				newFile.setFloat32(12, 120.96, true);
@@ -279,27 +294,39 @@
 				newFile.setUint32(56, 2560, true);
 
 				newFile.setUint32(60, 108, true); // big thumbnail Offset
-				newFile.setUint32(64, 188, true); // layer headers Offset
 				newFile.setUint32(68, photonLayers.length, true);
-				newFile.setUint32(72, 148, true); // small thumbnail Offset
 
 				// header big thumb
 				newFile.setUint32(108, 640, true);
 				newFile.setUint32(108+4, 480, true);
-				newFile.setUint32(108+8, 140, true); // big thumb data Offset
-				newFile.setUint32(108+12, 8, true); // empty thumbnail, just 8 empty bytes
+				newFile.setUint32(108+8, 140, true);
+				for(i = 0; i < bigThumbByteLength; i++){
+					index = i*2;
+					newFile.setUint8(140 + i, parseInt("0x" + bigThumb_string.charAt(index) + bigThumb_string.charAt(index+1)));
+				}
+				newFile.setUint32(108+12, bigThumbByteLength, true);
 
 				// header small thumb
-				newFile.setUint32(148, 320, true);
-				newFile.setUint32(148+4, 240, true);
-				newFile.setUint32(148+8, 180, true); // small thumb data Offset
-				newFile.setUint32(148+12, 8, true); // empty thumbnail, just 8 empty bytes
+				let smallThumbOffset = 140 + bigThumbByteLength
+				newFile.setUint32(72, smallThumbOffset, true); // small thumbnail Offset
+
+				newFile.setUint32(smallThumbOffset, 320, true);
+				newFile.setUint32(smallThumbOffset+4, 240, true);
+				newFile.setUint32(smallThumbOffset+8, smallThumbOffset+32, true);
+				for(i = 0; i < smallThumbByteLength; i++){
+					index = i*2;
+					newFile.setUint8(smallThumbOffset + 32 + i, parseInt("0x" + smallThumb_string.charAt(index) + smallThumb_string.charAt(index+1)));
+				}
+				newFile.setUint32(smallThumbOffset+12, smallThumbByteLength, true);
 
 				// layer headers
 				let layerOffsets = [];
-				currLayerOffset = 188 + (photonLayers.length * 36);
+				currLayerOffset = smallThumbOffset + 32 + smallThumbByteLength + (photonLayers.length * 36);
+
+				newFile.setUint32(64, smallThumbOffset + 32 + smallThumbByteLength, true); // layer headers Offset
+
 				for(i = 0; i < photonLayers.length; i++){
-						let offset = 188 + (36 * i);
+						let offset = smallThumbOffset + 32 + smallThumbByteLength + (36 * i);
 						newFile.setFloat32(offset, layerHeight*i, true);
 						newFile.setFloat32(offset+4, i < numBottomLayers ? bottomExpTime : expTime, true);
 						newFile.setFloat32(offset+8, offTime, true);
