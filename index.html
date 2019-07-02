@@ -279,8 +279,8 @@
 				newFile = new DataView(newFileArrayBuffer);
 				currPos = 0;
 
-				newFile.setUint32(0, 318570521, true);
-				newFile.setUint32(4, 1, true);
+				//newFile.setUint32(0, 318570521, true); // I'm copying from the original photon files from photon workshop here, but It doesn't match?
+				//newFile.setUint32(4, 1, true);
 
 				newFile.setFloat32(8, 68.04, true);
 				newFile.setFloat32(12, 120.96, true);
@@ -332,7 +332,7 @@
 						newFile.setFloat32(offset+8, offTime, true);
 						newFile.setUint32(offset+12, currLayerOffset, true);
 						layerOffsets.push(currLayerOffset);
-						newFile.setUint32(offset+16, currLayerOffset + photonLayers[i].length, true);
+						newFile.setUint32(offset+16, photonLayers[i].length, true); // error is here!
 						currLayerOffset += photonLayers[i].length;
 				}
 
