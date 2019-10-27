@@ -3,8 +3,10 @@
 <html lang="en">
 <head>
 	<meta charset="utf-8">
-	<title>Photon to Photons converter</title>
+	<title>Photon File Converter</title>
 	<script type="text/javascript" src="libs/bit-array.js"></script>
+	<script type="text/javascript" src="libs/UPNG.js"></script>
+	<script type="text/javascript" src="libs/Pako.js"></script>
 
 	<script type="text/javascript" src="thumbnailSource\bigThumb.js"></script>
 	<script type="text/javascript" src="thumbnailSource\smallThumb.js"></script>
@@ -39,18 +41,19 @@
 
 <body>
 	<div style="color:#000000ff" id="inputs">
-		<input type="file" id="files" name="files[]" accept=".photon" onchange="onFileSelected(event)"/> </br> </br>
+		<input type="file" id="files" name="files[]" accept=".png" onchange="onFileSelected(event)"/> </br> </br>
 
-		<input class="numInput" type="number" max="20" min="0" id="input_zDist" value="5" onfocusout="checkInput(0)"> Z-lift distance in mm</input></br>
+		<!-- <input class="numInput" type="number" max="20" min="0" id="input_zDist" value="5" onfocusout="checkInput(0)"> Z-lift distance in mm</input></br>
 		<input class="numInput" type="number" max="8" min="0" id="input_zSpeed" value="5" step="0.5" onfocusout="checkInput(1)"> Z-lift speed in mm/s</input></br>
-		<input class="numInput" type="number" max="8" min="0" id="input_zRetract" value="5" step="0.5" onfocusout="checkInput(2)"> z retract speed in mm/s</input></br></br>
+		<input class="numInput" type="number" max="8" min="0" id="input_zRetract" value="5" step="0.5" onfocusout="checkInput(2)"> z retract speed in mm/s</input></br></br> -->
 
 		<select id="output_fileFormat">
+			<option value="pws">.pws</option>
 		  <option value="ps">.photons</option>
 		  <option value="p">.photon</option>
 		</select> output file format</br></br>
 
-		<input type="checkbox" id="overwriteValues" onclick="toggleOverwrite()"> overwrite any settings?</input></br>
+		<!-- <input type="checkbox" id="overwriteValues" onclick="toggleOverwrite()"> overwrite any settings?</input></br>
 		<div id="overwriteInputs" style="display:none;">
 			<div style="padding-top:10px; padding-bottom:7px;">	overwrite ot your own risk. </div>
 			<input class="numInput" type="number" id="input_layerHeight" max="2" min="0.01" value="0.05" step="0.01" onfocusout="checkInput(3)"> Layer height in mm</input></br>
@@ -59,21 +62,19 @@
 			<input class="numInput" type="number" id="input_bottomExposure" value="60" onfocusout="checkInput(6)"> bottom exposure time</input></br>
 			<input class="numInput" type="number" id="input_numBottomLayers" value="8" step="1" onfocusout="checkInput(7)"> number of bottom layers</input></br></br>
 			<input type="text" id="input_newName"> new filename</input>
-		</div></br>
+		</div></br> -->
 
 		<button onclick="submit()" id="submit_Button" style="display:none;">convert file</button>
 		<script>
 
-			let photonFile = null;
-			let isPhotonS = false;
 			let fname = "";
 
-			function toggleOverwrite(){
+			/*function toggleOverwrite(){
 				updateSubmitButton();
 				document.getElementById("overwriteInputs").style = "display:" + (document.getElementById("overwriteValues").checked ? "block" : "none");
-			}
+			}*/
 
-			function checkInput(src){
+			/*function checkInput(src){
 				switch(src){
 					case 0:
 						el = document.getElementById("input_zDist");
@@ -92,9 +93,9 @@
 						if(el.value < 0.00) el.value = 0.00;
 					break;
 				}
-			}
+			}*/
 
-			function updateSubmitButton(){
+			/*function updateSubmitButton(){
 				if(isPhotonS)	document.getElementById("submit_Button").innerHTML = "update file";
 				else {
 					if(document.getElementById("overwriteValues").checked) document.getElementById("submit_Button").innerHTML = "convert and update file";
@@ -102,9 +103,9 @@
 				}
 
 				document.getElementById("submit_Button").style = "display:block;";
-			}
+			}*/
 
-			function updateInputs(){
+			/*function updateInputs(){
 				let h = photonFile.header;
 				document.getElementById("input_newName").value = fname.slice(0, fname.lastIndexOf("."));
 
@@ -119,107 +120,12 @@
 					document.getElementById("input_zSpeed").value = h.zRetract;
 					document.getElementById("input_zRetract").value = h.zSpeed;
 				}
-			}
+			}*/
 
 			function submit(){
-
-				if(document.getElementById("output_fileFormat").value == "ps"){
-
-					///////////////////////////////////////////////////////////////////////////// save photon S file
-
-					let layers = [];
-					bytesLayers = 0;
-					allWhitePx = 0;
-					h = photonFile.header;
-					numLayers = photonFile.header.layers;
-
-					for(k = 0; k < numLayers; k++){ // layers here refers to the number of layers, the layer data itself is in photonFile.layers.
-						layers[k] = convertToRuns(k);
-						bytesLayers += layers[k].lengths.length;
-						allWhitePx += layers[k].whitePx;
-					}
-
-					newFileArrayBuffer = new ArrayBuffer(75366 + bytesLayers + 28*layers.length);
-					newFile = new DataView(newFileArrayBuffer);
-					currPos = 0;
-
-					newFile.setUint32(0, 2, false);
-					newFile.setUint32(4, 3227560, false);
-					newFile.setUint32(8, 824633720, false);
-					newFile.setUint16(12, 10, false);
-
-					newFile.setFloat64(14, document.getElementById("input_layerHeight").value, false);
-					newFile.setFloat64(22, document.getElementById("input_exposure").value, false);
-					newFile.setFloat64(30, document.getElementById("input_offTime").value, false);
-					newFile.setFloat64(38, document.getElementById("input_bottomExposure").value, false);
-					newFile.setUint32(46, document.getElementById("input_numBottomLayers").value, false);
-					newFile.setFloat64(50, document.getElementById("input_zDist").value, false);
-					newFile.setFloat64(58, document.getElementById("input_zSpeed").value, false);
-					newFile.setFloat64(66, document.getElementById("input_zRetract").value, false);
-					newFile.setFloat64(74, allWhitePx * 0.04725 * 0.04725 * 0.001 * document.getElementById("input_layerHeight").value, false);
-					newFile.setUint32(82, 224, false);
-					newFile.setUint32(86, 42, false);
-					newFile.setUint32(90, 168, false);
-					newFile.setUint32(94, 10, false);
-					// preview image goes here, but I'm just not gonna scale it for now
-					for(i = 0; i < (sThumb_string.length/2); i++){
-						index = i*2;
-						newFile.setUint8(98 + i, parseInt("0x" + sThumb_string.charAt(index) + sThumb_string.charAt(index+1)));
-					}
-					//
-					newFile.setUint32(75362, numLayers, false);
-					// new Layers
-					currPos = 75366;
-					for(i = 0; i < numLayers; i++){
-						numbytes = layers[i].lengths.length;
-						newFile.setUint32(currPos, layers[i].whitePx, false);
-						newFile.setFloat64(currPos + 4, 0);
-						newFile.setUint32(currPos + 12, 1440, false);
-						newFile.setUint32(currPos + 16, 2560, false);
-						newFile.setUint32(currPos + 20, numbytes*8 + 32, false);
-	          newFile.setUint32(currPos + 24, 2684702720, false);
-						currPos += 28;
-						lens = layers[i].lengths;
-						cols = layers[i].colors;
-
-						for(j = 0; j < numbytes; j++){
-							val = lens[j] - 1;
-							col = cols[j];
-
-							encodedNum =
-								(val & 1 ? 128 : 0) |
-								(val & 2 ? 64 : 0) |
-								(val & 4 ? 32 : 0) |
-								(val & 8 ? 16 : 0) |
-								(val & 16 ? 8 : 0) |
-								(val & 32 ? 4 : 0) |
-								(val & 64 ? 2 : 0) | col ;
-
-							newFile.setUint8(currPos + j, encodedNum);
-						}
-
-						currPos += numbytes;
-
-					}
-
-					saveByteArray(newFileArrayBuffer, document.getElementById("input_newName").value);
-				}
-				else {
-
-					///////////////////////////////////////////////////////////////////////////// save photon file
-					let bitArrayLayers = convertLayersToBitArrays();
-					savePhotonFile(bitArrayLayers,
-						document.getElementById("input_layerHeight").value,
-						document.getElementById("input_exposure").value,
-						document.getElementById("input_bottomExposure").value,
-						document.getElementById("input_offTime").value,
-						document.getElementById("input_numBottomLayers").value
-					);
-				}
-
 			}
 
-			function convertLayersToBitArrays(){
+			/*function convertLayersToBitArrays(){
 					let layers = [];
 					let numPixelsInLayer = 2560 * 1440;
 					for(i = 0; i < photonFile.header.layers; i++){
@@ -240,9 +146,9 @@
 							layers.push(currLayerArray);
 					}
 					return layers;
-			}
+			}*/
 
-			function bitArraysToRuns(inLayers){
+			/*function bitArraysToRuns(inLayers){
 				let layers = [];
 				for(i = 0; i < inLayers.length; i++){
 					let inLayer = inLayers[i];
@@ -264,91 +170,10 @@
 					layers.push(layer);
 				}
 				return layers;
-			}
+			}*/
 
-			function savePhotonFile(inLayers, layerHeight, expTime, bottomExpTime, offTime, numBottomLayers){
-				// layers is supplied as an array of npm bit-arrays representing each layer.
-				let photonLayers = bitArraysToRuns(inLayers);
-				let numBytesLayers = 0;
-				for(i = 0; i < photonLayers.length; i++){
-					numBytesLayers += photonLayers[i].length;
-				}
-				let bigThumbByteLength = bigThumb_string.length/2;
-				let smallThumbByteLength = smallThumb_string.length/2;
-				newFileArrayBuffer = new ArrayBuffer(64 + 108 + numBytesLayers + 36*inLayers.length + bigThumbByteLength + smallThumbByteLength);
-				newFile = new DataView(newFileArrayBuffer);
-				currPos = 0;
-
-				//newFile.setUint32(0, 318570521, true); // I'm copying from the original photon files from photon workshop here, but It doesn't match?
-				//newFile.setUint32(4, 1, true);
-
-				newFile.setFloat32(8, 68.04, true);
-				newFile.setFloat32(12, 120.96, true);
-				newFile.setFloat32(16, 150.0, true);
-				newFile.setFloat32(32, layerHeight, true);
-				newFile.setFloat32(36, expTime, true);
-				newFile.setFloat32(40, bottomExpTime, true);
-				newFile.setFloat32(44, offTime, true);
-				newFile.setUint32(48, numBottomLayers, true);
-				newFile.setUint32(52, 1440, true);
-				newFile.setUint32(56, 2560, true);
-
-				newFile.setUint32(60, 108, true); // big thumbnail Offset
-				newFile.setUint32(68, photonLayers.length, true);
-
-				// header big thumb
-				newFile.setUint32(108, 640, true);
-				newFile.setUint32(108+4, 480, true);
-				newFile.setUint32(108+8, 140, true);
-				for(i = 0; i < bigThumbByteLength; i++){
-					index = i*2;
-					newFile.setUint8(140 + i, parseInt("0x" + bigThumb_string.charAt(index) + bigThumb_string.charAt(index+1)));
-				}
-				newFile.setUint32(108+12, bigThumbByteLength, true);
-
-				// header small thumb
-				let smallThumbOffset = 140 + bigThumbByteLength
-				newFile.setUint32(72, smallThumbOffset, true); // small thumbnail Offset
-
-				newFile.setUint32(smallThumbOffset, 320, true);
-				newFile.setUint32(smallThumbOffset+4, 240, true);
-				newFile.setUint32(smallThumbOffset+8, smallThumbOffset+32, true);
-				for(i = 0; i < smallThumbByteLength; i++){
-					index = i*2;
-					newFile.setUint8(smallThumbOffset + 32 + i, parseInt("0x" + smallThumb_string.charAt(index) + smallThumb_string.charAt(index+1)));
-				}
-				newFile.setUint32(smallThumbOffset+12, smallThumbByteLength, true);
-
-				// layer headers
-				let layerOffsets = [];
-				currLayerOffset = smallThumbOffset + 32 + smallThumbByteLength + (photonLayers.length * 36);
-
-				newFile.setUint32(64, smallThumbOffset + 32 + smallThumbByteLength, true); // layer headers Offset
-
-				for(i = 0; i < photonLayers.length; i++){
-						let offset = smallThumbOffset + 32 + smallThumbByteLength + (36 * i);
-						newFile.setFloat32(offset, layerHeight*i, true);
-						newFile.setFloat32(offset+4, i < numBottomLayers ? bottomExpTime : expTime, true);
-						newFile.setFloat32(offset+8, offTime, true);
-						newFile.setUint32(offset+12, currLayerOffset, true);
-						layerOffsets.push(currLayerOffset);
-						newFile.setUint32(offset+16, photonLayers[i].length, true); // error is here!
-						currLayerOffset += photonLayers[i].length;
-				}
-
-				for(i = 0; i < photonLayers.length; i++){
-					let offset = layerOffsets[i];
-					let currLayer = photonLayers[i];
-					for(run = 0; run < currLayer.length; run++){
-							newFile.setUint8(offset + run, currLayer[run]);
-					}
-				}
-
-				saveByteArray(newFileArrayBuffer, document.getElementById("input_newName").value, ".photon");
-
-			}
-
-			function saveByteArray(array, name, ending = ".photons"){
+			function saveByteArray(array, name, ending){
+				// supply ending as a string with the ., so ".photons" or ".pws" etc.
 				link = document.createElement( 'a' );
 				link.style.display = 'none';
 				document.body.appendChild( link );
@@ -358,7 +183,7 @@
 				link.click();
 			}
 
-			function convertToRuns(idx) {
+			/*function convertToRuns(idx) {
 
 				let long_colors = [];
 				let long_lengths = [];
@@ -426,104 +251,100 @@
 
 				return return_layer;
 
-			}
+			}*/
+
+			// var sublayer = 0;
 
 			function loadPhotonFile(d) {
+				readPngLayer(d);
+			}
 
-				if(isPhotonS){
-
-					////////////////////////////////////////////////////////////// .Photons
-
-					let header = {
-						bedSizeX: 68.04,
-						bedSizeY: 120.96,
-						bedSizeZ: 160.0,
-						layerThickness: d.getFloat64(14, false), // Big endian!
-						exposureTime: d.getFloat64(22, false),
-						bottomExposureTime: d.getFloat64(38, false),
-						offTime: d.getFloat64(30, false),
-						bottomLayers: d.getUint32(46, false),
-						resX: 1440, //is now for some reason per layer so also hardcode.
-						resY: 2560,
-						layers: d.getUint32(75362, false), // preview Image size and position is hardcoded now
-						zLift: d.getFloat64(50, false),
-						zRetract: d.getFloat64(58, false),
-						zSpeed: d.getFloat64(66, false)
-					};
-
-					let layers = [];
-
-					currentLayerOffset = 75366;  // layers always start after the hardcoded Preview image, so, also hardcoded.
-					currentLayerZPos = header.layerThickness;
-
-					for (let i = 0; i < header.layers; ++i) {
-
-						let layer = {
-							position: currentLayerZPos,
-							layerDataPosition: currentLayerOffset + 28,
-							dataSize: d.getUint32(currentLayerOffset + 20, false) /8
-						};
-
-						currentLayerOffset += layer.dataSize + 24;
-						currentLayerZPos += header.layerThickness;
-
-						layers.push(layer);
+			/*
+			function checkArraysForCoverage(inList){ // checks if all pixels in an aa layer are correct. a pixel is invalid , if it's supposed to be  a 1/4th exposure, but only the 2nd, 3rd and 4th layers are set
+				for(var i = 0; i < 3686400; i++){
+					hasBeen0 = false;
+					for(var j = 0; j < 8; j++){
+							colPixel = inList[j].get(i);
+							if(colPixel == 0) hasBeen0 = true;
+							//if(hasBeen0 && colPixel == 1) console.log("pixel at " + i + " has an error");
 					}
+				}
+				console.log("file has been checked");
+			}
 
-					photonFile = {
-						fileDataView: d,
-						header: header,
-						layers: layers
-					};
+			function saveSublayer(startPos, numBytes, d){ // saves numBytes of a binary file d starting at start pos
+				newFileArrayBuffer = new ArrayBuffer(numBytes);
+				newFile = new DataView(newFileArrayBuffer);
+				for(var i = 0; i < numBytes; i++){
+						newFile.setUint8(i, d.getUint8(startPos+i));
+				}
+				saveByteArray(newFileArrayBuffer, "SLayer" + sublayer, ".sl");
+			}
 
-				}else{
+			function savePngLayers(inList){ // save bit array as png, supports AA as grayscale
+				console.log("running");
+				//for(var i = 0; i < 8; i++){
+				AAMultiple = Math.min(Math.round(255 / inList.length),255);
 
-					////////////////////////////////////////////////////////////// .Photon
-
-					let header = {
-						bedSizeX: d.getFloat32(8, true),
-						bedSizeY: d.getFloat32(12, true),
-						bedSizeZ: d.getFloat32(16, true),
-						layerThickness: d.getFloat32(32, true),
-						exposureTime: d.getFloat32(36, true),
-						bottomExposureTime: d.getFloat32(40, true),
-						offTime: d.getFloat32(44, true),
-						bottomLayers: d.getUint32(48, true),
-						resX: d.getUint32(52, true),
-						resY: d.getUint32(56, true),
-						bigThumbOffset: d.getUint32(60, true),
-						layersOffset: d.getUint32(64, true),
-						layers: d.getUint32(68, true),
-						smallThumbOffset: d.getUint32(72, true)
-					};
-
-					let layers = [];
-
-					for (let i = 0; i < header.layers; ++i) {
-						let o = header.layersOffset + i * 36;
-
-						let layer = {
-							position: d.getFloat32(o + 0, true),
-							exposureTime: d.getFloat32(o + 4, true),
-							offTime: d.getFloat32(o + 8, true),
-							dataOffset: d.getUint32(o + 12, true),
-							dataSize: d.getUint32(o + 16, true)
-						};
-
-						layers.push(layer);
+				layerPixels = new Uint8Array(3686400*4);
+				for(var j = 0; j < 3686400; j++){
+					pixVal = 0
+					hasBeen0 = false;
+					pixError = false;
+					for(var i = 0; i < inList.length; i++){
+							subpixCol = inList[i].get(j);
+							pixVal += subpixCol
+							if(subpixCol == 0) hasBeen0 = true;
+							if(hasBeen0 && subpixCol == 1) pixError = true;
 					}
+					pixCol = Math.min(pixVal*AAMultiple,255);
+					layerPixels[j*4] = 255;
+					layerPixels[(j*4)+3] = 255;
+					if(!pixError){
+						layerPixels[j*4] = pixCol;
+						layerPixels[(j*4)+1] = pixCol;
+						layerPixels[(j*4)+2] = pixCol;
+					}
+				}
+				png = UPNG.encode([layerPixels.buffer], 1440, 2560, 0);
+				saveByteArray(png, "Layer" + i, ".png");
+				//}
+			}
 
-					photonFile = {
-						fileDataView: d,
-						header: header,
-						layers: layers
-					};
-
+			function readPngLayer(layer){ // read png and save as encoded pws/photon layer only 1bit grayscale.
+				var pngImport = UPNG.decode(layer);
+				var pixelData = new DataView(UPNG.toRGBA8(pngImport)[0]);
+				var outRunsArray = [];
+				currentRun = 1;
+				currentCol = Math.round(pixelData.getUint8(0)/255);
+				for(var i = 1; i < 3686400; i++){
+						col = Math.round(pixelData.getUint8(i*4)/255);
+						if(currentCol == col){
+							if(currentRun == 125){
+								outRunsArray.push(currentRun | (col<<7));
+								currentRun=0;
+							}
+							currentRun++;
+						}else{
+							outRunsArray.push(currentRun | (currentCol<<7));
+							currentCol = col;
+							currentRun = 1;
+						}
 				}
 
-				updateInputs();
+				if(currentRun > 0){
+						outRun = (currentCol<<7) | currentRun;
+						outRunsArray.push(outRun);
+				}
 
+				newFileArrayBuffer = new ArrayBuffer(outRunsArray.length);
+				newFile = new DataView(newFileArrayBuffer);
+				for(var i = 0; i < outRunsArray.length; i++){
+						newFile.setUint8(i, outRunsArray[i]);
+				}
+				saveByteArray(newFileArrayBuffer, "layer", ".sl");
 			}
+			*/
 
 			function onFileSelected(evt) {
 				let files = evt.target.files;
@@ -536,7 +357,7 @@
 
 					r.onload = function(event) {
 						let d = new DataView(event.target.result);
-						loadPhotonFile(d);
+						loadPhotonFile(event.target.result);
 						//renderThumbnail(loadImage(photonFile.header.smallThumbOffset, d, isPhotonS), document.getElementById('thumb-small'));
 					};
 
