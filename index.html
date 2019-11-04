@@ -12,6 +12,8 @@
 	<script type="text/javascript" src="thumbnailSource\smallThumb.js"></script>
 	<script type="text/javascript" src="thumbnailSource\SThumb.js"></script>
 
+	<script type="text/javascript" src="JS\internalFormatHandling.js"></script>
+
 	<script type="text/javascript" src="JS\photonsFileHandling.js"></script>
 	<script type="text/javascript" src="JS\photonFileHandling.js"></script>
 	<script type="text/javascript" src="JS\pwsFileHandling.js"></script>
@@ -55,7 +57,7 @@
 
 <body>
 	<div style="color:#000000ff" id="inputs">
-		<input type="file" id="files" name="files[]" accept="" onchange="onFileSelected(event)"/> </br> </br>
+		<input type="file" id="files" name="files[]" accept=".photon, .cbddlp, .pws, .photons" onchange="onFileSelected(event)"/> </br> </br>
 
 		<!-- <input class="numInput" type="number" max="20" min="0" id="input_zDist" value="5" onfocusout="checkInput(0)"> Z-lift distance in mm</input></br>
 		<input class="numInput" type="number" max="8" min="0" id="input_zSpeed" value="5" step="0.5" onfocusout="checkInput(1)"> Z-lift speed in mm/s</input></br>
@@ -78,7 +80,7 @@
 			<input type="text" id="input_newName"> new filename</input>
 		</div></br> -->
 
-		<button onclick="submit()" id="submit_Button" style="display:none;">convert file</button>
+		<button onclick="submit()" id="submit_Button">convert file</button>
 
 		<div id="silderDiv">
 			<input type="range" min="0" max="100" value="0" class="slider" id="layerSelectSilder">
@@ -209,6 +211,9 @@
 			}*/
 
 			function submit(){
+				if(internalFileLoaded){
+					savePhotonFile(internalFile);
+				}
 			}
 
 			/*function convertLayersToBitArrays(){
@@ -445,7 +450,8 @@
 				}
 			}*/
 
-			let internalFile = {};
+		 	var internalFile = {};
+			var internalFileLoaded = false;
 
 			function onFileSelected(evt) {
 				let files = evt.target.files;
@@ -457,10 +463,12 @@
 						let d = new DataView(event.target.result);
 						switch(fileExtension){
 						case "photons" : internalFile = readPhotonsFile(d); break;
-						case "photon" : internalFile = readPhotonFile(d); break;
+						case "photon": case "cbddlp" : internalFile = readPhotonFile(d); break;
 						case "pws" : internalFile = readPwsFile(d); break;
 						}
+						internalFile.settings.name = fname.slice(0, fname.lastIndexOf("."));
 						console.log(internalFile);
+						internalFileLoaded = true;
 						buildPreview(internalFile);
 						slider = document.getElementById("layerSelectSilder");
 						slider.max = internalFile.settings.numberOfLayers - 1;

@@ -13,6 +13,7 @@ function readPwsFile(file){
   let layerHeadersOffset = file.getUint32(36, true) + 20; // number of layers, a human readble identifier and the byte length of the layer headers block is stored in the first 20 bytes
 
   let settings = {
+    name: "",
     numberOfLayers : file.getUint32(layerHeadersOffset - 4, true),
     resolutionX : file.getUint32(108, true),
     resolutionY : file.getUint32(112, true),

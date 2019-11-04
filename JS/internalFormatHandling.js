@@ -1,4 +1,4 @@
-/*
+/* description
 
 SlicedFile
   Flags
@@ -54,7 +54,7 @@ SlicedFile
     Layer N
   ]
 */
-
+/* basic implementation
 let flags = {
   srcUsesGlobalExposureTime : true,
   srcUsesGlobalLightOffTime : true,
@@ -113,4 +113,82 @@ let loadedFile = {
   settings : settings,
   previewImage : previewImage,
   layers : layers
+} */
+
+function encodeLayerData(file, type){ // type specifies the file type
+  encodedLayers = []
+  lengthFileData = 0;
+  for(currentLayerIndex = 0; currentLayerIndex < file.settings.numberOfLayers; currentLayerIndex++){
+    encodedSublayers = []
+    lengthLayerData = 0;
+    for(currentSublayerIndex = 0; currentSublayerIndex < file.settings.globalNumberOfSublayers; currentSublayerIndex++){
+      data = file.layers[currentLayerIndex].subLayers[currentSublayerIndex].layerData;
+      convertedData = convertToRuns(data, type);
+      let encodedSublayer = {
+        lengthSublayerData: convertedData.length,
+        data: convertedData
+      }
+      lengthLayerData += convertedData.length;
+      encodedSublayers.push(encodedSublayer);
+    }
+    let encodedLayer = {
+      lengthLayerData: lengthLayerData,
+      sublayers: encodedSublayers
+    }
+    lengthFileData += lengthLayerData;
+    encodedLayers.push(encodedLayer)
+  }
+  let encodedFile = {
+    lengthFileData: lengthFileData,
+    layers: encodedLayers
+  }
+  return encodedFile
+}
+
+logs = 0;
+
+function convertToRuns(data, type){
+  maxRunLength = 125;
+  if(type == 'photons') maxRunLength = 128;
+  convertedData = [];
+  currentRunColor = data.get[0];
+  currentRunLength = 1;
+  for(pixel = 1; pixel < 3686400; pixel++){
+    newColor = data.get(pixel);
+    if(newColor != currentRunColor){
+        convertedData.push(runToByte(currentRunColor, currentRunLength, type));
+        currentRunColor = newColor;
+        currentRunLength = 1;
+    }else{
+      if(currentRunLength == maxRunLength){
+        convertedData.push(runToByte(currentRunColor, currentRunLength, type));
+        currentRunLength = 1;
+      }else{
+        currentRunLength++;
+      }
+    }
+  }
+  if(currentRunLength > 0){
+    convertedData.push(runToByte(currentRunColor, currentRunLength, type));
+  }
+  return convertedData;
+}
+
+function runToByte(color, length, type){
+  switch(type){
+    case 'pws': case 'photon':
+      return length | (color * 128);
+    break;
+    case 'photons':
+      length--;
+      return
+        (length & 1 ? 128 : 0) |
+        (length & 2 ? 64 : 0) |
+        (length & 4 ? 32 : 0) |
+        (length & 8 ? 16 : 0) |
+        (length & 16 ? 8 : 0) |
+        (length & 32 ? 4 : 0) |
+        (length & 64 ? 2 : 0) | color ;
+    break;
+  }
 }
