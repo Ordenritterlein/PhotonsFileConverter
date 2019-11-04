@@ -1,53 +1,112 @@
 function readPhotonsFile(file){
 
-  let header = {
-    bedSizeX: 68.04,
-    bedSizeY: 120.96,
-    bedSizeZ: 160.0,
-    layerThickness: d.getFloat64(14, false), // Big endian!
-    exposureTime: d.getFloat64(22, false),
-    bottomExposureTime: d.getFloat64(38, false),
-    offTime: d.getFloat64(30, false),
-    bottomLayers: d.getUint32(46, false),
-    resX: 1440, //is now for some reason per layer so also hardcode.
-    resY: 2560,
-    numLayers: d.getUint32(75362, false), // preview Image size and position is hardcoded now
-
-    AALevel : 1,
-    AALowExposure: 0, //proposed min exposure term for calibrating AA better and for the Exposure Test to be more useful
-
-    zLift: d.getFloat64(50, false),
-    zRetract: d.getFloat64(58, false),
-    zSpeed: d.getFloat64(66, false)
+  let flags = {
+    srcUsesGlobalExposureTime : true,
+    srcUsesGlobalLightOffTime : true,
+    srcUsesGlobalLayerHeight : true,
+    srcUsesGlobalBottomLayerSettings : true,
+    srcUsesGlobalSublayerCount : true,
+    srcUsesEvenSubLayerExposure : true,
+    isPreviewImageEmpty : true
   };
 
-  let layers = [];
+  let settings = {
+    numberOfLayers : file.getUint32(75362, false), // false because "old" photonS files are  BigEndian
+    resolutionX : 1440,
+    resolutionY : 2560,
+    buildVolumeX : 68.04,
+    buildVolumeY : 120.96,
+    buildVolumeZ : 160.0,
+    physicalPixelSize : 47.25,
+    globalLayerHeight : file.getFloat64(14, false),
+    globalExposureTime : file.getFloat64(22, false),
+    globalNumberOfBottomLayers : file.getUint32(46, false),
+    globalBottomExposureTime : file.getFloat64(38, false),
+    globalNumberOfSublayers : 1, // generalized AA layers.
+    globalLightOffTime : file.getFloat64(30, false),
+    peelDistance : file.getFloat64(50, false), // referred to in the slicer as zLift(peel distance), zSpeed(peelSpeed) and zRetract(peelReturnSpeed)
+    peelLiftSpeed : file.getFloat64(66, false),
+    peelReturnSpeed : file.getFloat64(58, false)
+  };
+
+  let previewImage = { // left empty until i have the nerve to implement png conversion
+    resolutionX : 224,
+    resolutionY : 168,
+    imageData : {}
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  let layers = [];  //array of layers
 
   currentLayerOffset = 75366;  // layers always start after the hardcoded Preview image, so, also hardcoded.
-  currentLayerZPos = header.layerThickness;
+  currentLayerZPos = 0;
 
-  for (let i = 0; i < header.numLayers; ++i) {
+  for (let currentLayerIndex = 0; currentLayerIndex < settings.numberOfLayers; currentLayerIndex++) {
 
-    let layer = {
-      position: currentLayerZPos,
-      layerDataPosition: currentLayerOffset + 28,
-      dataSize: d.getUint32(currentLayerOffset + 20, false) /8
+    let sublayers = []; // sublayers generalize AA
+
+    layerDataPosition = currentLayerOffset + 28; // layer header is 8 bytes long
+    dataSize = (file.getUint32(currentLayerOffset + 20, false) / 8) - 4; //value is stored in bits, so divide by 8. there's also 4 leading bytes included.
+
+    let sublayer = { // sublayers could ideally have per-sublayer exposure time settings
+      exposureTime : settings.globalExposureTime,
+      layerData : photonsSubLayerDataToBitArray(file, layerDataPosition, dataSize, settings.resolutionX * settings.resolutionY)
+    }
+
+    sublayers.push(sublayer);
+
+    let layer = { // numOfSublayers = AA number,
+      numberOfSublayers : 1,
+      exposureTime : (currentLayerIndex < settings.globalNumberOfBottomLayers ? settings.globalBottomExposureTime : settings.globalExposureTime), // photonS doesn't have per-layer exposure time, so just assign based on if bottom layer or not
+      lightOffTime: settings.globalLightOffTime,
+      layerHeight : settings.globalLayerHeight, //no per-layer layerheight
+      positionZ : currentLayerZPos,
+      subLayers : sublayers
     };
 
-    currentLayerOffset += layer.dataSize + 24;
-    currentLayerZPos += header.layerThickness;
+    currentLayerOffset += dataSize + 28;
+    currentLayerZPos += settings.globalLayerHeight;
 
     layers.push(layer);
   }
+  
+  //////////////////////////////////////////////////////////////////////////////
 
-  fileData = {
-    fileDataView: d,
-    header: header,
-    layers: layers
-  };
+  let loadedFile = {
+    flags : flags,
+    settings : settings,
+    previewImage : previewImage,
+    layers : layers
+  }
 
-  return fileData;
+  return loadedFile;
 }
+
+function photonsSubLayerDataToBitArray(file, dataOffset, dataSize, numPixelsInLayer){
+  currLayerArray = new BitArray(numPixelsInLayer);
+  o = dataOffset;
+  pixelPos = 0;
+  while(o - dataOffset < dataSize){
+      run = file.getInt8(o++);
+      col = run & 1;
+      numPixelxInRun =
+      ((run & 128 ? 1 : 0) |
+      (run & 64 ? 2 : 0) |
+      (run & 32 ? 4 : 0) |
+      (run & 16 ? 8 : 0) |
+      (run & 8 ? 16 : 0) |
+      (run & 4 ? 32 : 0) |
+      (run & 2 ? 64 : 0)) + 1 ;
+      for(j = 0; j < numPixelxInRun; j++){
+        currLayerArray.set(pixelPos+j, col);
+      }
+      pixelPos+=numPixelxInRun;
+  }
+  return currLayerArray;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 function savePhotonsFile(data){
 

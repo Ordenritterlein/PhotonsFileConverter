@@ -1,53 +1,104 @@
 function readPwsFile(file){
 
-  let header = {
-    bedSizeX: 68.04,
-    bedSizeY: 120.96,
-    bedSizeZ: 160.0,
-    layerThickness: d.getFloat64(14, false), // Big endian!
-    exposureTime: d.getFloat64(22, false),
-    bottomExposureTime: d.getFloat64(38, false),
-    offTime: d.getFloat64(30, false),
-    bottomLayers: d.getUint32(46, false),
-    resX: 1440, //is now for some reason per layer so also hardcode.
-    resY: 2560,
-    numLayers: d.getUint32(75362, false), // preview Image size and position is hardcoded now
-
-    AALevel : 1,
-    AALowExposure: 0, //proposed min exposure term for calibrating AA better and for the Exposure Test to be more useful
-
-    zLift: d.getFloat64(50, false),
-    zRetract: d.getFloat64(58, false),
-    zSpeed: d.getFloat64(66, false)
+  let flags = {
+    srcUsesGlobalExposureTime : false,
+    srcUsesGlobalLightOffTime : false,
+    srcUsesGlobalLayerHeight : false,
+    srcUsesGlobalBottomLayerSettings : true,
+    srcUsesGlobalSublayerCount : true,
+    srcUsesEvenSubLayerExposure : true,
+    isPreviewImageEmpty : true
   };
 
+  let layerHeadersOffset = file.getUint32(36, true) + 20; // number of layers, a human readble identifier and the byte length of the layer headers block is stored in the first 20 bytes
+
+  let settings = {
+    numberOfLayers : file.getUint32(layerHeadersOffset - 4, true),
+    resolutionX : file.getUint32(108, true),
+    resolutionY : file.getUint32(112, true),
+    buildVolumeX : 68.04,
+    buildVolumeY : 120.96,
+    buildVolumeZ : 160.0,
+    physicalPixelSize : file.getFloat32(64, true),
+    globalLayerHeight : file.getFloat32(68, true),
+    globalExposureTime : file.getFloat32(72, true),
+    globalNumberOfBottomLayers : file.getUint32(84, true),
+    globalBottomExposureTime : file.getFloat32(80, true),
+    globalNumberOfSublayers : file.getUint32(104, true),
+    globalLightOffTime : file.getFloat32(76, true),
+    peelDistance : file.getFloat32(88, true),
+    peelLiftSpeed : file.getFloat32(92, true),
+    peelReturnSpeed : file.getFloat32(96, true)
+  };
+
+  let previewImage = {
+    resolutionX : 224,
+    resolutionY : 168,
+    imageData : {}
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+
   let layers = [];
+  let currentLayerZPos = 0;
 
-  currentLayerOffset = 75366;  // layers always start after the hardcoded Preview image, so, also hardcoded.
-  currentLayerZPos = header.layerThickness;
+  for (let currentLayerIndex = 0; currentLayerIndex < settings.numberOfLayers; currentLayerIndex++) {
 
-  for (let i = 0; i < header.numLayers; ++i) {
+    o = layerHeadersOffset + currentLayerIndex * 32;
+    layerDataOffset = file.getUint32(o, true);
+
+    sublayers = [];
+
+    for(let currentSublayerIndex = 0; currentSublayerIndex < settings.globalNumberOfSublayers; currentSublayerIndex++){
+
+      let numPixelsInLayer = settings.resolutionX * settings.resolutionY;
+      let currLayerArray = new BitArray(numPixelsInLayer);
+      let pixelPos = 0;
+      while(pixelPos < numPixelsInLayer){
+          let run = file.getInt8(layerDataOffset++);
+          let col = false
+          if (run < 0){run = 128 + run; col = true;}
+          for(j = 0; j < run; j++){
+            currLayerArray.set(pixelPos+j, col);
+          }
+          pixelPos+=run;
+      }
+
+      let sublayer = {
+        exposureTime : settings.globalExposureTime,
+        layerData: currLayerArray
+      }
+
+      sublayers.push(sublayer);
+    }
 
     let layer = {
-      position: currentLayerZPos,
-      layerDataPosition: currentLayerOffset + 28,
-      dataSize: d.getUint32(currentLayerOffset + 20, false) /8
+      numberOfSublayers : settings.globalNumberOfSublayers,
+      exposureTime : file.getFloat32(o + 16, true),
+      lightOffTime: settings.globalLightOffTime,
+      layerHeight : file.getFloat32(o + 20, true),
+      positionZ : currentLayerZPos,
+      subLayers : sublayers
     };
 
-    currentLayerOffset += layer.dataSize + 24;
-    currentLayerZPos += header.layerThickness;
-
+    currentLayerZPos += layer.layerHeight;
     layers.push(layer);
   }
 
-  fileData = {
-    fileDataView: d,
-    header: header,
-    layers: layers
-  };
+  //////////////////////////////////////////////////////////////////////////////
 
-  return fileData;
+  let loadedFile = {
+    flags : flags,
+    settings : settings,
+    previewImage : previewImage,
+    layers : layers
+  }
+
+  return loadedFile;
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function savePwsFile(data){
 

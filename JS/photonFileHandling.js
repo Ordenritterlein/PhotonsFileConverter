@@ -1,50 +1,108 @@
 function readPhotonFile(file){
 
-  let header = {
-    bedSizeX: d.getFloat32(8, true),
-    bedSizeY: d.getFloat32(12, true),
-    bedSizeZ: d.getFloat32(16, true),
-    layerThickness: d.getFloat32(32, true),
-    exposureTime: d.getFloat32(36, true),
-    bottomExposureTime: d.getFloat32(40, true),
-    offTime: d.getFloat32(44, true),
-    bottomLayers: d.getUint32(48, true),
-    resX: d.getUint32(52, true),
-    resY: d.getUint32(56, true),
-    numLayers: d.getUint32(68, true),
-
-    AALevel : 1,
-    AALowExposure: 0, //proposed min exposure term for calibrating AA better and for the Exposure Test to be more useful
-
-    bigThumbOffset: d.getUint32(60, true),
-    layersOffset: d.getUint32(64, true),
-    smallThumbOffset: d.getUint32(72, true)
+  let flags = {
+    srcUsesGlobalExposureTime : false,
+    srcUsesGlobalLightOffTime : false,
+    srcUsesGlobalLayerHeight : true,
+    srcUsesGlobalBottomLayerSettings : true,
+    srcUsesGlobalSublayerCount : true,
+    srcUsesEvenSubLayerExposure : true,
+    isPreviewImageEmpty : true
   };
 
+  let settings = {
+    numberOfLayers : file.getUint32(68, true),
+    resolutionX : file.getUint32(52, true),
+    resolutionY : file.getUint32(56, true),
+    buildVolumeX : file.getFloat32(8, true),
+    buildVolumeY : file.getFloat32(12, true),
+    buildVolumeZ : file.getFloat32(16, true),
+    physicalPixelSize : 47.25,
+    globalLayerHeight : file.getFloat32(32, true),
+    globalExposureTime : file.getFloat32(36, true),
+    globalNumberOfBottomLayers : file.getUint32(48, true),
+    globalBottomExposureTime : file.getFloat32(40, true),
+    globalNumberOfSublayers : file.getUint32(92, true),
+    globalLightOffTime : file.getFloat32(44, true),
+    peelDistance : 6,
+    peelLiftSpeed : 3,
+    peelReturnSpeed : 3
+  };
+
+  let previewImage = {
+    resolutionX : 640,
+    resolutionY : 480,
+    imageData : {}
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+
   let layers = [];
+  let layerHeadersOffset = file.getUint32(64, true);
 
-  for (let i = 0; i < header.numLayers; ++i) {
-    let o = header.layersOffset + i * 36;
+  for (let currentLayerIndex = 0; currentLayerIndex < settings.numberOfLayers; currentLayerIndex++) {
 
-    let layer = {
-      position: d.getFloat32(o + 0, true),
-      exposureTime: d.getFloat32(o + 4, true),
-      offTime: d.getFloat32(o + 8, true),
-      dataOffset: d.getUint32(o + 12, true),
-      dataSize: d.getUint32(o + 16, true)
+    sublayers = [];
+
+    o = layerHeadersOffset + currentLayerIndex * 36;
+    sublayerBlockLength = settings.numberOfLayers * 36;
+
+    for(let currentSublayerIndex = 0; currentSublayerIndex < settings.globalNumberOfSublayers; currentSublayerIndex++){
+      sublayerOffset = o + sublayerBlockLength * currentSublayerIndex;
+
+      sublayerDataPosition = file.getUint32(sublayerOffset + 12, true);
+      sublayerDataSize = file.getUint32(sublayerOffset + 16, true);
+
+      let sublayer = {
+        exposureTime : file.getFloat32(sublayerOffset + 4, true),
+        layerData : photonSubLayerDataToBitArray(file, sublayerDataPosition, sublayerDataSize, settings.resolutionX * settings.resolutionY)
+      }
+      sublayers.push(sublayer);
+    }
+
+    let layer = { // numOfSublayers = AA number
+      numberOfSublayers : settings.globalNumberOfSublayers,
+      exposureTime : file.getFloat32(o + 4, true),
+      lightOffTime: file.getFloat32(o + 8, true),
+      layerHeight : settings.globalLayerHeight,
+      positionZ : file.getFloat32(o + 0, true),
+      subLayers : sublayers
     };
 
     layers.push(layer);
   }
 
-  fileData = {
-    fileDataView: d,
-    header: header,
-    layers: layers
-  };
+  //////////////////////////////////////////////////////////////////////////////
 
-  return fileData;
+  let loadedFile = {
+    flags : flags,
+    settings : settings,
+    previewImage : previewImage,
+    layers : layers
+  }
+
+  return loadedFile;
 }
+
+function photonSubLayerDataToBitArray(file, dataOffset, dataSize, numPixelsInLayer){
+  let currLayerArray = new BitArray(numPixelsInLayer);
+  let o = dataOffset;
+  let pixelPos = 0;
+  while(pixelPos < numPixelsInLayer){
+      let run = file.getInt8(o++);
+      let col = false
+      if (run < 0){run = 128 + run; col = true;}
+      for(j = 0; j < run; j++){
+        currLayerArray.set(pixelPos+j, col);
+      }
+      pixelPos+=run;
+  }
+  return currLayerArray;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 function savePhotonFile(data){
   /*

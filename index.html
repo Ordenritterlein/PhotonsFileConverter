@@ -12,6 +12,10 @@
 	<script type="text/javascript" src="thumbnailSource\smallThumb.js"></script>
 	<script type="text/javascript" src="thumbnailSource\SThumb.js"></script>
 
+	<script type="text/javascript" src="JS\photonsFileHandling.js"></script>
+	<script type="text/javascript" src="JS\photonFileHandling.js"></script>
+	<script type="text/javascript" src="JS\pwsFileHandling.js"></script>
+
 	<style>
 		#attribution p{
 			margin: 12px;
@@ -36,12 +40,22 @@
 			width:70px;
 		}
 
+		#LayerPreview {
+			height: 90vh;
+	    max-width: 95vw;
+	    max-height: 168.88vw;
+		}
+
+		#layerSelectSilder {
+			width: 95vw;
+		}
+
 	</style>
 </head>
 
 <body>
 	<div style="color:#000000ff" id="inputs">
-		<input type="file" id="files" name="files[]" accept=".png" onchange="onFileSelected(event)"/> </br> </br>
+		<input type="file" id="files" name="files[]" accept="" onchange="onFileSelected(event)"/> </br> </br>
 
 		<!-- <input class="numInput" type="number" max="20" min="0" id="input_zDist" value="5" onfocusout="checkInput(0)"> Z-lift distance in mm</input></br>
 		<input class="numInput" type="number" max="8" min="0" id="input_zSpeed" value="5" step="0.5" onfocusout="checkInput(1)"> Z-lift speed in mm/s</input></br>
@@ -65,7 +79,79 @@
 		</div></br> -->
 
 		<button onclick="submit()" id="submit_Button" style="display:none;">convert file</button>
+
+		<div id="silderDiv">
+			<input type="range" min="0" max="100" value="0" class="slider" id="layerSelectSilder">
+		</div>
+
+		<div id="LayerCanvasDiv">
+			<canvas id="LayerPreview" width=1440 height=2560> </canvas>
+		</div>
+
 		<script>
+
+			var layerPreviewCanvas = document.getElementById("LayerPreview");
+			var layerPreviewCanvasContext = layerPreviewCanvas.getContext("2d");
+			var layerPreviewContentArray = new BitArray(2560 * 1440);
+			layerPreviewCanvasContext.fillStyle = "#000000";
+			layerPreviewCanvasContext.fillRect( 0,0, 1440, 2560);
+
+			/*function drawLayerPreview(file, layerIndex, useSublayers = false){
+				for(let pixel = 0; pixel < 3686400; pixel++){
+					color = layerPreviewContentArray.get(pixel);
+					newColor = file.layers[layerIndex].subLayers[0].layerData.get(pixel);
+					if(color != newColor){
+						layerPreviewCanvasContext.fillStyle = newColor ? "#ffffffff" : "#000000";
+						layerPreviewContentArray.set(pixel, newColor);
+						posX = pixel%1440;
+						posY = Math.floor(pixel/1440);
+						layerPreviewCanvasContext.fillRect( posY, posX, 1, 1);
+					}
+				}
+			}*/
+
+			let layerPreviewImages = [];
+
+			function drawLayerPreview(index){
+				layerPreviewCanvasContext.putImageData(layerPreviewImages[index], 0, 0);
+			}
+
+			function buildLayerPreviewImage(file, layerIndex, useSublayers = false){
+				inList = []
+				for(i = 0; i < file.settings.globalNumberOfSublayers; i++){
+						inList.push(file.layers[layerIndex].subLayers[i].layerData);
+				}
+				AAMultiple = Math.min(Math.round(255 / inList.length),255);
+				layerPixels = new Uint8ClampedArray(3686400*4);
+				for(var j = 0; j < 3686400; j++){
+					pixVal = 0
+					hasBeen0 = false;
+					pixError = false;
+					for(var i = 0; i < inList.length; i++){
+							subpixCol = inList[i].get(j);
+							pixVal += subpixCol
+							if(subpixCol == 0) hasBeen0 = true;
+							if(hasBeen0 && subpixCol == 1) pixError = true;
+					}
+					pixCol = Math.min(pixVal*AAMultiple,255);
+					layerPixels[j*4] = 255;
+					layerPixels[(j*4)+3] = 255;
+					if(!pixError){
+						layerPixels[j*4] = pixCol;
+						layerPixels[(j*4)+1] = pixCol;
+						layerPixels[(j*4)+2] = pixCol;
+					}
+				}
+				return new ImageData(layerPixels, 1440, 2560);
+			}
+
+			function buildPreview(file){
+					layerPreviewImages = [];
+					for(i = 0; i < file.settings.numberOfLayers; i++){
+						console.log("building Layer " + i);
+						layerPreviewImages.push(buildLayerPreviewImage(file,i));
+					}
+			}
 
 			let fname = "";
 
@@ -255,12 +341,7 @@
 
 			// var sublayer = 0;
 
-			function loadPhotonFile(d) {
-				readPngLayer(d);
-			}
-
-			/*
-			function checkArraysForCoverage(inList){ // checks if all pixels in an aa layer are correct. a pixel is invalid , if it's supposed to be  a 1/4th exposure, but only the 2nd, 3rd and 4th layers are set
+			/*function checkArraysForCoverage(inList){ // checks if all pixels in an aa layer are correct. a pixel is invalid , if it's supposed to be  a 1/4th exposure, but only the 2nd, 3rd and 4th layers are set
 				for(var i = 0; i < 3686400; i++){
 					hasBeen0 = false;
 					for(var j = 0; j < 8; j++){
@@ -270,16 +351,16 @@
 					}
 				}
 				console.log("file has been checked");
-			}
+			}*/
 
-			function saveSublayer(startPos, numBytes, d){ // saves numBytes of a binary file d starting at start pos
+			/*function saveSublayer(startPos, numBytes, d){ // saves numBytes of a binary file d starting at start pos
 				newFileArrayBuffer = new ArrayBuffer(numBytes);
 				newFile = new DataView(newFileArrayBuffer);
 				for(var i = 0; i < numBytes; i++){
 						newFile.setUint8(i, d.getUint8(startPos+i));
 				}
 				saveByteArray(newFileArrayBuffer, "SLayer" + sublayer, ".sl");
-			}
+			}*/
 
 			function savePngLayers(inList){ // save bit array as png, supports AA as grayscale
 				console.log("running");
@@ -311,7 +392,7 @@
 				//}
 			}
 
-			function readPngLayer(layer){ // read png and save as encoded pws/photon layer only 1bit grayscale.
+			/*function readPngLayer(layer){ // read png and save as encoded pws/photon layer only 1bit grayscale.
 				var pngImport = UPNG.decode(layer);
 				var pixelData = new DataView(UPNG.toRGBA8(pngImport)[0]);
 				var outRunsArray = [];
@@ -346,25 +427,52 @@
 			}
 			*/
 
-			function onFileSelected(evt) {
-				let files = evt.target.files;
+			/*function outputLayerHeaderData(file){
 
-				if (files.length == 1) {
-					fname = evt.target.files[0].name;
-					isPhotonS = fname.slice((fname.lastIndexOf(".") - 1 >>> 0) + 2) == "photons";
+				for (let currentLayerIndex = 0; currentLayerIndex < 24; currentLayerIndex++) {
 
-					let r = new FileReader();
+					o = currentLayerIndex * 36;
 
-					r.onload = function(event) {
-						let d = new DataView(event.target.result);
-						loadPhotonFile(event.target.result);
-						//renderThumbnail(loadImage(photonFile.header.smallThumbOffset, d, isPhotonS), document.getElementById('thumb-small'));
+					let oneHeader = {
+						position: file.getFloat32(o + 0, true),
+						exposureTime: file.getFloat32(o + 4, true),
+						offTime: file.getFloat32(o + 8, true),
+						dataOffset: file.getUint32(o + 12, true),
+						dataSize: file.getUint32(o + 16, true)
 					};
 
-					r.readAsArrayBuffer(files[0]);
-					updateSubmitButton();
+					console.log(oneHeader);
 				}
+			}*/
 
+			let internalFile = {};
+
+			function onFileSelected(evt) {
+				let files = evt.target.files;
+				if (files.length == 1) {
+					fname = evt.target.files[0].name;
+					fileExtension = fname.slice((fname.lastIndexOf(".") - 1 >>> 0) + 2);
+					let r = new FileReader();
+					r.onload = function(event) {
+						let d = new DataView(event.target.result);
+						switch(fileExtension){
+						case "photons" : internalFile = readPhotonsFile(d); break;
+						case "photon" : internalFile = readPhotonFile(d); break;
+						case "pws" : internalFile = readPwsFile(d); break;
+						}
+						console.log(internalFile);
+						buildPreview(internalFile);
+						slider = document.getElementById("layerSelectSilder");
+						slider.max = internalFile.settings.numberOfLayers - 1;
+						slider.value = 0;
+						slider.oninput = function(){
+							drawLayerPreview(slider.value);
+						};
+						drawLayerPreview(0);
+
+					};
+					r.readAsArrayBuffer(files[0]);
+				}
 			}
 
 		</script>
