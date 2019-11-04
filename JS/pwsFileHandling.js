@@ -99,7 +99,6 @@ function readPwsFile(file){
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 function savePwsFile(file){
 
@@ -107,75 +106,84 @@ function savePwsFile(file){
 
     console.log(layerData);
 
-    let bigThumbByteLength = bigThumb_string.length/2;
-    let smallThumbByteLength = smallThumb_string.length/2;
-    newFileArrayBuffer = new ArrayBuffer(64 + 112 + layerData.lengthFileData + ((36*file.settings.numberOfLayers) * file.settings.globalNumberOfSublayers) + bigThumbByteLength + smallThumbByteLength);
+
+    newFileArrayBuffer = new ArrayBuffer(layerData.lengthFileData + (32*file.settings.numberOfLayers) + 75456);
     newFile = new DataView(newFileArrayBuffer);
 
-    newFile.setFloat32(8, 68.04, true);
-    newFile.setFloat32(12, 120.96, true);
-    newFile.setFloat32(16, 150.0, true);
-    newFile.setFloat32(32, file.settings.globalLayerHeight, true);
-    newFile.setFloat32(36, file.settings.globalExposureTime, true);
-    newFile.setFloat32(40, file.settings.globalBottomExposureTime, true);
-    newFile.setFloat32(44, file.settings.globalLightOffTime, true);
-    newFile.setUint32(48, file.settings.globalNumberOfBottomLayers, true);
-    newFile.setUint32(92, file.settings.globalNumberOfSublayers, true);
-    newFile.setUint32(52, 1440, true);
-    newFile.setUint32(56, 2560, true);
+    newFile.setUint32(0, 1129926209, true); //"ANYCUBIC"
+    newFile.setUint32(4, 1128874581, true);
+    newFile.setUint32(48, 1145128264, true); //"HEADER"
+    newFile.setUint32(52, 21061, true);
+    newFile.setUint32(144, 1447383632, true); //"PREVIEW"
+    newFile.setUint32(248, 5719369, true);
+    newFile.setUint32(75436, 1163477324, true); //"LAYERDEF"
+    newFile.setUint32(75440, 1178944594, true);
 
-    newFile.setUint32(60, 112, true); // big thumbnail Offset
-    newFile.setUint32(68, file.settings.numberOfLayers, true);
+    // ANYCUBIC section
+    newFile.setUint32(12, 1, true); // version Number
+    newFile.setUint32(16, 4, true); // Area Number (?)
+    newFile.setUint32(20, 48, true); // HEADER address
+    newFile.setUint32(28, 144, true); // PREVIEW address
+    newFile.setUint32(36, 75436, true); // LAYERDEF address
+    newFile.setUint32(44, 75456 + (32*file.settings.numberOfLayers), true); // Layer Data address
 
-    // header big thumb
-    newFile.setUint32(112, 640, true);
-    newFile.setUint32(112+4, 480, true);
-    newFile.setUint32(112+8, 144, true);
-    for(i = 0; i < bigThumbByteLength; i++){
-      index = i*2;
-      newFile.setUint8(144 + i, parseInt("0x" + bigThumb_string.charAt(index) + bigThumb_string.charAt(index+1)));
-    }
-    newFile.setUint32(112+12, bigThumbByteLength, true);
+    //HEADER section
+    newFile.setUint32(48 + 12, 80, true);
+    newFile.setFloat32(48 + 16, file.settings.physicalPixelSize, true);
+    newFile.setFloat32(48 + 20, file.settings.globalLayerHeight, true);
+    newFile.setFloat32(48 + 24, file.settings.globalExposureTime, true);
+    newFile.setFloat32(48 + 28, file.settings.globalLightOffTime, true);
+    newFile.setFloat32(48 + 32, file.settings.globalBottomExposureTime, true);
+    newFile.setUint32(48 + 36, file.settings.globalNumberOfBottomLayers, true);
+    newFile.setFloat32(48 + 40, file.settings.peelDistance, true);
+    newFile.setFloat32(48 + 44, file.settings.peelSpeed, true);
+    newFile.setFloat32(48 + 48, file.settings.peelReturnSpeed, true);
+    //newFile.setFloat32(48 + 52, 69420, true); //volume
+    newFile.setUint32(48 + 56, file.settings.globalNumberOfSublayers, true);
+    newFile.setUint32(48 + 60, 1440, true);
+    newFile.setUint32(48 + 64, 2560, true);
+    //newFile.setFloat32(48 + 68, 69420, true); //weight
+    //newFile.setFloat32(48 + 72, 69420, true); //price
+    //newFile.setUint32(48 + 76, 69420, true); //resin Type
+    newFile.setUint32(48 + 80, 1, true); //use Individual Parameters? (1/0)
 
-    // header small thumb
-    let smallThumbOffset = 144 + bigThumbByteLength
-    newFile.setUint32(72, smallThumbOffset, true); // small thumbnail Offset
-
-    newFile.setUint32(smallThumbOffset, 320, true);
-    newFile.setUint32(smallThumbOffset+4, 240, true);
-    newFile.setUint32(smallThumbOffset+8, smallThumbOffset+32, true);
-    for(i = 0; i < smallThumbByteLength; i++){
-      index = i*2;
-      newFile.setUint8(smallThumbOffset + 32 + i, parseInt("0x" + smallThumb_string.charAt(index) + smallThumb_string.charAt(index+1)));
-    }
-    newFile.setUint32(smallThumbOffset+12, smallThumbByteLength, true);
+    //PREVIEW section
+    newFile.setUint32(144 + 12, 75276, true); // preview data length
+    newFile.setUint32(144 + 16, 224, true);
+    newFile.setUint32(144 + 20, 42, true); // the answer to everything aparrently
+    newFile.setUint32(144 + 24, 168, true);
 
     //////////////////////////////////////////////////////////////////////////
 
-    currentLayerOffset = smallThumbOffset + 32 + smallThumbByteLength + ((file.settings.numberOfLayers * 36) * file.settings.globalNumberOfSublayers);
-    layerHeadersOffset = smallThumbOffset + 32 + smallThumbByteLength;
-    newFile.setUint32(64, layerHeadersOffset, true); // layer headers Offset
-    sublayerHeadersBlockSize = 36 * file.settings.numberOfLayers;
-
-    for(j = 0; j < file.settings.globalNumberOfSublayers; j++){
-      for(i = 0; i < file.settings.numberOfLayers; i++){
-          let offset = layerHeadersOffset + (36 * i) + (sublayerHeadersBlockSize * j);
-          newFile.setFloat32(offset, file.layers[i].positionZ, true);
-          newFile.setFloat32(offset+4, file.layers[i].exposureTime, true);
-          newFile.setFloat32(offset+8, file.layers[i].lightOffTime, true);
-          newFile.setUint32(offset+16, layerData.layers[i].sublayers[j].lengthSublayerData, true);
-      }
+    for(i = 0; i < (sThumb_string.length/2); i++){
+      index = i*2;
+      newFile.setUint8(172 + i, parseInt("0x" + sThumb_string.charAt(index) + sThumb_string.charAt(index+1)));
     }
 
+    //////////////////////////////////////////////////////////////////////////
+
+    newFile.setUint32(75452, file.settings.numberOfLayers, true);
+
+    currentLayerOffset = 75456 + (file.settings.numberOfLayers * 32); //+20 LAYERDEF size and numLayers already added
+    layerHeadersOffset = 75456;
+
     for(i = 0; i < file.settings.numberOfLayers; i++){
-      for(j = 0; j < file.settings.globalNumberOfSublayers; j++){
-        let currLayer = layerData.layers[i].sublayers[j].data;
-        for(run = 0; run < currLayer.length; run++){
-            newFile.setUint8(currentLayerOffset + run, currLayer[run]);
+        let offset = layerHeadersOffset + (32 * i);
+        newFile.setUint32(offset, currentLayerOffset, true); //address
+        newFile.setUint32(offset+4, layerData.layers[i].lengthLayerData, true); //dataLength
+
+        for(j = 0; j < file.settings.globalNumberOfSublayers; j++){
+          let currLayer = layerData.layers[i].sublayers[j].data;
+          for(run = 0; run < currLayer.length; run++){
+              newFile.setUint8(currentLayerOffset + run, currLayer[run]);
+          }
+          currentLayerOffset += layerData.layers[i].sublayers[j].lengthSublayerData;
         }
-        newFile.setUint32(layerHeadersOffset + (36 * i) + (sublayerHeadersBlockSize * j) +12, currentLayerOffset, true);
-        currentLayerOffset += layerData.layers[i].sublayers[j].lengthSublayerData;
-      }
+
+        newFile.setFloat32(offset+8, file.settings.peelDistance, true);
+        newFile.setFloat32(offset+12, file.settings.peelSpeed, true);
+        newFile.setUint32(offset+16, file.layers[i].exposureTime, true);
+        newFile.setUint32(offset+20, file.layers[i].layerheight, true);
     }
 
     saveByteArray(newFileArrayBuffer, file.settings.name + "_converted", ".pws");
