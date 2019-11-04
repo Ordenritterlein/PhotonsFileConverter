@@ -6,4 +6,6 @@ preview images get replaced by something arbitrary currently as scaling between 
 
 The converter uses an internal format that can easily be used with other js projects for impoert/export
 
+an online compy is hosted over at http://converter.chrisgraf.de/
+
 with some input from Rob2048's photon file import script.
