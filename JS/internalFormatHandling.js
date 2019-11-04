@@ -130,6 +130,7 @@ function encodeLayerData(file, type){ // type specifies the file type
       }
       lengthLayerData += convertedData.length;
       encodedSublayers.push(encodedSublayer);
+      if(type == "photons") currentSublayerIndex = file.settings.globalNumberOfSublayers;
     }
     let encodedLayer = {
       lengthLayerData: lengthLayerData,
@@ -151,7 +152,7 @@ function convertToRuns(data, type){
   maxRunLength = 125;
   if(type == 'photons') maxRunLength = 128;
   convertedData = [];
-  currentRunColor = data.get[0];
+  currentRunColor = data.get(0);
   currentRunLength = 1;
   for(pixel = 1; pixel < 3686400; pixel++){
     newColor = data.get(pixel);
@@ -181,14 +182,14 @@ function runToByte(color, length, type){
     break;
     case 'photons':
       length--;
-      return
-        (length & 1 ? 128 : 0) |
-        (length & 2 ? 64 : 0) |
-        (length & 4 ? 32 : 0) |
-        (length & 8 ? 16 : 0) |
-        (length & 16 ? 8 : 0) |
-        (length & 32 ? 4 : 0) |
-        (length & 64 ? 2 : 0) | color ;
+      out = (length & 1 ? 128 : 0) |
+            (length & 2 ? 64 : 0) |
+            (length & 4 ? 32 : 0) |
+            (length & 8 ? 16 : 0) |
+            (length & 16 ? 8 : 0) |
+            (length & 32 ? 4 : 0) |
+            (length & 64 ? 2 : 0) | color ;
+      return out;
     break;
   }
 }

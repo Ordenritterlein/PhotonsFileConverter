@@ -1,5 +1,7 @@
 function readPhotonFile(file){
 
+  console.log("watthefucck");
+
   let flags = {
     srcUsesGlobalExposureTime : false,
     srcUsesGlobalLightOffTime : false,
@@ -23,7 +25,7 @@ function readPhotonFile(file){
     globalExposureTime : file.getFloat32(36, true),
     globalNumberOfBottomLayers : file.getUint32(48, true),
     globalBottomExposureTime : file.getFloat32(40, true),
-    globalNumberOfSublayers : file.getUint32(92, true),
+    globalNumberOfSublayers : Math.max(1,file.getUint32(92, true)),
     globalLightOffTime : file.getFloat32(44, true),
     peelDistance : 6,
     peelLiftSpeed : 3,
@@ -59,14 +61,14 @@ function readPhotonFile(file){
         layerData : photonSubLayerDataToBitArray(file, sublayerDataPosition, sublayerDataSize, settings.resolutionX * settings.resolutionY)
       }
 
-      let loggedSublayer = {
+      /*let loggedSublayer = {
         exposureTime: file.getFloat32(sublayerOffset + 4, true),
         sublayerDataSize: file.getUint32(sublayerOffset + 16, true),
         sublayerDataPosition: file.getUint32(sublayerOffset + 12, true),
         lightOffTime: file.getFloat32(o + 8, true),
         positionZ : file.getFloat32(o + 0, true)
       }
-      console.log(loggedSublayer);
+      console.log(loggedSublayer);*/
 
       sublayers.push(sublayer);
     }

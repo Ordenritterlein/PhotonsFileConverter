@@ -111,19 +111,10 @@ function photonsSubLayerDataToBitArray(file, dataOffset, dataSize, numPixelsInLa
 
 function savePhotonsFile(file){
 
-  let layers = [];
-  bytesLayers = 0;
-  allWhitePx = 0;
-  h = photonFile.header;
-  numLayers = photonFile.header.layers;
+  layerData = encodeLayerData(file, "photons");
+  console.log(layerData);
 
-  for(k = 0; k < numLayers; k++){ // layers here refers to the number of layers, the layer data itself is in photonFile.layers.
-    layers[k] = convertToRuns(k);
-    bytesLayers += layers[k].lengths.length;
-    allWhitePx += layers[k].whitePx;
-  }
-
-  newFileArrayBuffer = new ArrayBuffer(75366 + bytesLayers + 28*layers.length);
+  newFileArrayBuffer = new ArrayBuffer(75366 + layerData.lengthFileData + 28*file.settings.numberOfLayers);
   newFile = new DataView(newFileArrayBuffer);
   currPos = 0;
 
@@ -132,15 +123,15 @@ function savePhotonsFile(file){
   newFile.setUint32(8, 824633720, false);
   newFile.setUint16(12, 10, false);
 
-  newFile.setFloat64(14, document.getElementById("input_layerHeight").value, false);
-  newFile.setFloat64(22, document.getElementById("input_exposure").value, false);
-  newFile.setFloat64(30, document.getElementById("input_offTime").value, false);
-  newFile.setFloat64(38, document.getElementById("input_bottomExposure").value, false);
-  newFile.setUint32(46, document.getElementById("input_numBottomLayers").value, false);
-  newFile.setFloat64(50, document.getElementById("input_zDist").value, false);
-  newFile.setFloat64(58, document.getElementById("input_zSpeed").value, false);
-  newFile.setFloat64(66, document.getElementById("input_zRetract").value, false);
-  newFile.setFloat64(74, allWhitePx * 0.04725 * 0.04725 * 0.001 * document.getElementById("input_layerHeight").value, false);
+  newFile.setFloat64(14, file.settings.globalLayerHeight, false);
+  newFile.setFloat64(22, file.settings.globalExposureTime, false);
+  newFile.setFloat64(30, file.settings.globalLightOffTime, false);
+  newFile.setFloat64(38, file.settings.globalBottomExposureTime, false);
+  newFile.setUint32(46, file.settings.globalNumberOfBottomLayers, false);
+  newFile.setFloat64(50, file.settings.peelDistance, false);
+  newFile.setFloat64(58, file.settings.peelLiftSpeed, false);
+  newFile.setFloat64(66, file.settings.peelReturnSpeed, false);
+  newFile.setFloat64(74, 69420, false); // allWhitePx * 0.04725 * 0.04725 * 0.001 * document.getElementById("input_layerHeight").value // no easy way to calculate without iterating over the whole thing or changing the internal format
   newFile.setUint32(82, 224, false);
   newFile.setUint32(86, 42, false);
   newFile.setUint32(90, 168, false);
@@ -151,41 +142,24 @@ function savePhotonsFile(file){
     newFile.setUint8(98 + i, parseInt("0x" + sThumb_string.charAt(index) + sThumb_string.charAt(index+1)));
   }
   //
-  newFile.setUint32(75362, numLayers, false);
+  newFile.setUint32(75362, file.settings.numberOfLayers, false);
   // new Layers
+  //console.log(layerData.layers[50].sublayers[0].data);
   currPos = 75366;
-  for(i = 0; i < numLayers; i++){
-    numbytes = layers[i].lengths.length;
-    newFile.setUint32(currPos, layers[i].whitePx, false);
+  for(i = 0; i < file.settings.numberOfLayers; i++){
+    numbytes = layerData.layers[i].sublayers[0].lengthSublayerData;
+    newFile.setUint32(currPos, 69420, false); // again, not easily calculable without larger modifications
     newFile.setFloat64(currPos + 4, 0);
     newFile.setUint32(currPos + 12, 1440, false);
     newFile.setUint32(currPos + 16, 2560, false);
     newFile.setUint32(currPos + 20, numbytes*8 + 32, false);
     newFile.setUint32(currPos + 24, 2684702720, false);
     currPos += 28;
-    lens = layers[i].lengths;
-    cols = layers[i].colors;
-
     for(j = 0; j < numbytes; j++){
-      val = lens[j] - 1;
-      col = cols[j];
-
-      encodedNum =
-        (val & 1 ? 128 : 0) |
-        (val & 2 ? 64 : 0) |
-        (val & 4 ? 32 : 0) |
-        (val & 8 ? 16 : 0) |
-        (val & 16 ? 8 : 0) |
-        (val & 32 ? 4 : 0) |
-        (val & 64 ? 2 : 0) | col ;
-
-      newFile.setUint8(currPos + j, encodedNum);
+      newFile.setUint8(currPos + j, layerData.layers[i].sublayers[0].data[j]);
     }
-
     currPos += numbytes;
-
   }
 
-  saveByteArray(newFileArrayBuffer, document.getElementById("input_newName").value);
-
+  saveByteArray(newFileArrayBuffer, file.settings.name + "_converted", ".photons");
 }
