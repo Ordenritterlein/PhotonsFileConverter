@@ -1,7 +1,5 @@
 function readPhotonFile(file){
 
-  console.log("watthefucck");
-
   let flags = {
     srcUsesGlobalExposureTime : false,
     srcUsesGlobalLightOffTime : false,
@@ -115,7 +113,7 @@ function photonSubLayerDataToBitArray(file, dataOffset, dataSize, numPixelsInLay
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-function savePhotonFile(file){
+function savePhotonFile(file, isCbddlp = false){
 
     layerData = encodeLayerData(file, "photon");
 
@@ -192,5 +190,5 @@ function savePhotonFile(file){
       }
     }
 
-    saveByteArray(newFileArrayBuffer, file.settings.name + "_converted", ".photon");
+    saveByteArray(newFileArrayBuffer, file.settings.name, isCbddlp ? ".cbddlp" : ".photon");
 }

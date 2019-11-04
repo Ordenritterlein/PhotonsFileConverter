@@ -66,6 +66,7 @@ let flags = {
 };
 
 let settings = {
+  name: "",
   numberOfLayers : 1,
   resolutionX : 1440,
   resolutionY : 2560,

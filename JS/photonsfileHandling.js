@@ -161,5 +161,5 @@ function savePhotonsFile(file){
     currPos += numbytes;
   }
 
-  saveByteArray(newFileArrayBuffer, file.settings.name + "_converted", ".photons");
+  saveByteArray(newFileArrayBuffer, file.settings.name, ".photons");
 }

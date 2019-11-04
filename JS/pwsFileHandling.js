@@ -186,5 +186,5 @@ function savePwsFile(file){
         newFile.setUint32(offset+20, file.layers[i].layerheight, true);
     }
 
-    saveByteArray(newFileArrayBuffer, file.settings.name + "_converted", ".pws");
+    saveByteArray(newFileArrayBuffer, file.settings.name, ".pws");
 }
