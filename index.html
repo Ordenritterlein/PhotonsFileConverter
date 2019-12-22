@@ -1,80 +1,345 @@
 <!doctype html>
 
 <html lang="en">
-
 <head>
 	<meta charset="utf-8">
-	<title>Photon to Photons converter</title>
+	<title>Photon File Converter</title>
 	<script type="text/javascript" src="libs/bit-array.js"></script>
+	<script type="text/javascript" src="libs/UPNG.js"></script>
+	<script type="text/javascript" src="libs/Pako.js"></script>
 
 	<script type="text/javascript" src="thumbnailSource\bigThumb.js"></script>
 	<script type="text/javascript" src="thumbnailSource\smallThumb.js"></script>
 	<script type="text/javascript" src="thumbnailSource\SThumb.js"></script>
 
-	<script type="text/javascript" src="fileConverter.js"></script>
+	<script type="text/javascript" src="JS\internalFormatHandling.js"></script>
+
+	<script type="text/javascript" src="JS\photonsFileHandling.js"></script>
+	<script type="text/javascript" src="JS\photonFileHandling.js"></script>
+	<script type="text/javascript" src="JS\pwsFileHandling.js"></script>
 
 	<style>
-		#attribution p {
+		#attribution p{
 			margin: 12px;
-			bottom: -5px;
+    	bottom: -5px;
 		}
 
-		#attribution p:first-child {
-			left: 12px;
+		#attribution p:first-child{
+			left:12px;
 		}
 
-		#attribution p:last-child {
+		#attribution p:last-child{
 			right: 12px;
 			text-align: right;
 		}
 
-		#attribution a {
+		#attribution a{
 			text-decoration: none;
 			color: #87a6ff;
 		}
 
-		.numInput {
+		#LayerControlsDiv{
+			position: absolute;
+	    top: 0px;
+	    right: 0px;
+	    height: 100%;
+		}
+
+		#canvasScaler{
+			height: 100%;
+			right:0px;
+	    position: absolute;
+	    transform: translate(50%, 0) scale(0.97) translate(-50%,0);
+		}
+		#LayerPreview{
+			height: 100%;
+			right: 90px;
+			position: absolute;
+		}
+
+		#layerSelectSilder {
+		  writing-mode: bt-lr; /* IE */
+		  -webkit-appearance: slider-vertical; /* WebKit */
+			position: absolute;
+	    right: 34px;
+	    bottom: 0px;
+	    transform: translate(0,50%) scale(0.97) translate(0,-50%);
+		  width: 8px;
+		  height: 100%;
+		  padding: 0 5px;
+		}
+
+		body {
+			overflow:hidden;
+		}
+
+		#input_manualLayerSelect {
 			width: 70px;
+	    height: 30px;
+	    padding: 0;
+	    border: 0;
+	    position: absolute;
+	    top: 0;
+	    right: 5px;
+	    font-size: 15pt;
+	    text-align: center;
 		}
 	</style>
 </head>
 
 <body>
 	<div style="color:#000000ff" id="inputs">
-		<input type="file" id="files" name="files[]" accept=".photon" onchange="onFileSelected(event)" /> </br> </br>
 
-		<input class="numInput" type="number" max="20" min="0" id="input_zDist" value="5" onfocusout="checkInput(0)">
-		Z-lift distance in mm</input></br>
-		<input class="numInput" type="number" max="8" min="0" id="input_zSpeed" value="5" step="0.5"
-			onfocusout="checkInput(1)"> Z-lift speed in mm/s</input></br>
-		<input class="numInput" type="number" max="8" min="0" id="input_zRetract" value="5" step="0.5"
-			onfocusout="checkInput(2)"> z retract speed in mm/s</input></br></br>
-
+		<input type="file" id="files" name="files[]" accept=".photon, .cbddlp, .pws, .photons" onchange="onFileSelected(event)"/>
 		<select id="output_fileFormat">
-			<option value="ps">.photons</option>
-			<option value="p">.photon</option>
-		</select> output file format</br></br>
+			<option value="pws">.pws</option>
+		  <option value="photons">.photons</option>
+		  <option value="photon">.photon</option>
+			<option value="cbddlp">.cbddlp</option>
+		</select> output file format
+		<button onclick="submit()" id="submit_Button">convert file</button> </br></br>
 
-		<input type="checkbox" id="overwriteValues" onclick="toggleOverwrite()"> overwrite any settings?</input></br>
-		<div id="overwriteInputs" style="display:none;">
-			<div style="padding-top:10px; padding-bottom:7px;"> overwrite ot your own risk. </div>
-			<input class="numInput" type="number" id="input_layerHeight" max="2" min="0.01" value="0.05" step="0.01"
-				onfocusout="checkInput(3)"> Layer height in mm</input></br>
-			<input class="numInput" type="number" id="input_exposure" value="8" step="0.5" onfocusout="checkInput(4)">
-			curing time in seconds</input></br>
-			<input class="numInput" type="number" id="input_offTime" value="4.5" onfocusout="checkInput(5)"> off time in
-			seconds</input></br>
-			<input class="numInput" type="number" id="input_bottomExposure" value="60" onfocusout="checkInput(6)">
-			bottom exposure time</input></br>
-			<input class="numInput" type="number" id="input_numBottomLayers" value="8" step="1"
-				onfocusout="checkInput(7)"> number of bottom layers</input></br></br>
-			<input type="text" id="input_newName"> new filename</input>
-		</div></br>
+		<input type="text" id="input_newName"> File name</input></br></br>
 
-		<button onclick="submit()" id="submit_Button" style="display:none;">convert file</button>
-		<script type="text/javascript" src="converterUi.js"></script>
+	  <input class="numInput" type="number" id="input_globalLayerHeight" min="0.01" value="0.05" step="0.01"> File layer height in mm</input></br>
+	  <input class="numInput" type="number" id="input_globalExposureTime" min="0" value="8" step="0.01"> File exposure time in s</input></br>
+	  <input class="numInput" type="number" id="input_globalNumberOfBottomLayers" min="0" value="6" step="1"> Number of bottom layers</input></br>
+	  <input class="numInput" type="number" id="input_globalBottomExposureTime" min="0" value="60" step="0.01"> Bottom layer exposure time in s</input></br>
+	  <input class="numInput" type="number" id="input_globalLightOffTime" min="0" value="1" step="0.01"> File light off time in s</input></br>
+	  <input class="numInput" type="number" id="input_peelDistance" min="0" value="3" step="0.01"> Peel distance in mm</input></br>
+	  <input class="numInput" type="number" id="input_peelLiftSpeed" min="0" value="3" step="0.01"> Peel lift speed in mm/s</input></br>
+	  <input class="numInput" type="number" id="input_peelReturnSpeed" min="0" value="6" step="0.01"> Peel return speed in mm/s</input></br></br>
+
+		<input type="checkbox" id="input_overwriteValues"> overwrite per layer settings with global settings?</input></br></br>
+
+		<input class="numInput" type="number" id="input_manualLayerSelect2" max="100" min="0" value="0" step="1"> current Layer</input></br>
+	  <input class="numInput" type="number" id="input_exposureTime" min="0" value="8"> Per-layer exposure time</input></br>
+	  <input class="numInput" type="number" id="input_lightOffTime" min="0" value="1"> Per-layer light off time</input></br>
+	  <input class="numInput" type="number" id="input_layerHeight" max="2" min="0.01" value="0.05" step="0.01"> Per-layer layer height</input></br>
+
+		<div id="LayerControlsDiv">
+			<div id="canvasScaler">
+				<canvas id="LayerPreview" width=1440 height=2560> </canvas>
+				<input type="range" min="0" max="100" value="0" class="slider" id="layerSelectSilder" orient="vertical"> </input>
+				<input class="numInput" type="number" id="input_manualLayerSelect" max="100" min="0" value="0"> </input>
+			</div>
+		</div>
+
+		<script>
+
+			var layerPreviewCanvas = document.getElementById("LayerPreview");
+			var layerPreviewCanvasContext = layerPreviewCanvas.getContext("2d");
+			var layerPreviewContentArray = new BitArray(2560 * 1440);
+			layerPreviewCanvasContext.fillStyle = "#000000";
+			layerPreviewCanvasContext.fillRect( 0,0, 1440, 2560);
+
+			let layerPreviewImages = [];
+
+			function drawLayerPreview(index){
+				layerPreviewCanvasContext.putImageData(layerPreviewImages[index], 0, 0);
+			}
+
+			function buildLayerPreviewImage(file, layerIndex, useSublayers = false){
+				inList = []
+				for(i = 0; i < file.settings.globalNumberOfSublayers; i++){
+						inList.push(file.layers[layerIndex].subLayers[i].layerData);
+				}
+				AAMultiple = Math.min(Math.round(255 / inList.length),255);
+				layerPixels = new Uint8ClampedArray(3686400*4);
+				for(var j = 0; j < 3686400; j++){
+					pixVal = 0
+					hasBeen0 = false;
+					pixError = false;
+					for(var i = 0; i < inList.length; i++){
+							subpixCol = inList[i].get(j);
+							pixVal += subpixCol
+							if(subpixCol == 0) hasBeen0 = true;
+							if(hasBeen0 && subpixCol == 1) pixError = true;
+					}
+					pixCol = Math.min(pixVal*AAMultiple,255);
+					layerPixels[j*4] = 255;
+					layerPixels[(j*4)+3] = 255;
+					if(!pixError){
+						layerPixels[j*4] = pixCol;
+						layerPixels[(j*4)+1] = pixCol;
+						layerPixels[(j*4)+2] = pixCol;
+					}
+				}
+				return new ImageData(layerPixels, 1440, 2560);
+			}
+
+			function buildPreview(file){
+					layerPreviewImages = [];
+					for(i = 0; i < file.settings.numberOfLayers; i++){
+						console.log("building Layer " + i);
+						layerPreviewImages.push(buildLayerPreviewImage(file,i));
+					}
+			}
+
+			let fname = "";
+
+			function setInputValues(){
+
+				input_newName = document.getElementById("input_newName");
+
+				input_globalLayerHeight = document.getElementById("input_globalLayerHeight");
+			  input_globalExposureTime = document.getElementById("input_globalExposureTime");
+			  input_globalNumberOfBottomLayers = document.getElementById("input_globalNumberOfBottomLayers");
+			  input_globalBottomExposureTime = document.getElementById("input_globalBottomExposureTime" );
+			  input_globalLightOffTime = document.getElementById("input_globalLightOffTime");
+			  input_peelDistance = document.getElementById("input_peelDistance");
+			  input_peelLiftSpeed = document.getElementById("input_peelLiftSpeed");
+			  input_peelReturnSpeed = document.getElementById("input_peelReturnSpeed");
+				input_overwriteValues = document.getElementById("input_overwriteValues");
+				input_exposureTime = document.getElementById("input_exposureTime");
+				input_lightOffTime = document.getElementById("input_lightOffTime");
+				input_layerHeight = document.getElementById("input_layerHeight");
+				input_manualLayerSelect2 = document.getElementById("input_manualLayerSelect2");
+				slider = document.getElementById("layerSelectSilder");
+				manualSelect = document.getElementById("input_manualLayerSelect");
+
+				updatePerLayerInputs(0);
+
+				slider.max = internalFile.settings.numberOfLayers - 1;
+				slider.value = 0;
+				slider.oninput = function(){
+					manualSelect.value = slider.value;
+					input_manualLayerSelect2.value = slider.value;
+					drawLayerPreview(slider.value);
+					updatePerLayerInputs(slider.value);
+				};
+
+				manualSelect.max = internalFile.settings.numberOfLayers - 1;
+				manualSelect.value = 0;
+				manualSelect.oninput = function(){
+					value = Math.min(Math.max(0,manualSelect.value), internalFile.settings.numberOfLayers - 1);
+					slider.value = value;
+					input_manualLayerSelect2.value = value;
+					drawLayerPreview(value);
+					updatePerLayerInputs(value);
+				};
+
+				input_manualLayerSelect2.max = internalFile.settings.numberOfLayers - 1;
+				input_manualLayerSelect2.value = 0;
+				input_manualLayerSelect2.oninput = function(){
+					value = Math.min(Math.max(0,input_manualLayerSelect2.value), internalFile.settings.numberOfLayers - 1);
+					slider.value = value;
+					manualSelect.value = value;
+					drawLayerPreview(value);
+					updatePerLayerInputs(value);
+				};
+
+				input_newName.value = internalFile.settings.name;
+				input_globalLayerHeight.value = internalFile.settings.globalLayerHeight;
+			  input_globalExposureTime.value = internalFile.settings.globalExposureTime;
+			  input_globalNumberOfBottomLayers.value = internalFile.settings.globalNumberOfBottomLayers;
+			  input_globalBottomExposureTime.value = internalFile.settings.globalBottomExposureTime;
+			  input_globalLightOffTime.value = internalFile.settings.globalLightOffTime;
+			  input_peelDistance.value = internalFile.settings.peelDistance;
+			  input_peelLiftSpeed.value = internalFile.settings.peelLiftSpeed;
+			  input_peelReturnSpeed.value = internalFile.settings.peelReturnSpeed;
+
+				input_newName.oninput = function(){
+					internalFile.settings.name = input_newName.value;
+				}
+				input_globalLayerHeight.oninput = function(){
+					internalFile.settings.globalLayerHeight = Math.min(0.01,input_globalLayerHeight.value);
+				}
+				input_globalExposureTime.oninput = function(){
+					internalFile.settings.globalExposureTime =  Math.min(0,input_globalExposureTime.value);
+				}
+			  input_globalNumberOfBottomLayers.oninput = function(){
+					internalFile.settings.globalNumberOfBottomLayers = Math.min(0,input_globalNumberOfBottomLayers.value);
+				}
+			  input_globalBottomExposureTime.oninput = function(){
+					internalFile.settings.globalBottomExposureTime = Math.min(0,input_globalBottomExposureTime.value);
+				}
+			  input_globalLightOffTime.oninput = function(){
+					internalFile.settings.globalLightOffTime = Math.min(0,input_globalLightOffTime.value);
+				}
+			  input_peelDistance.oninput = function(){
+					internalFile.settings.peelDistance = Math.min(0,input_peelDistance.value);
+				}
+			  input_peelLiftSpeed.oninput = function(){
+					internalFile.settings.peelLiftSpeed = Math.min(0,input_peelLiftSpeed.value);
+				}
+			  input_peelReturnSpeed.oninput = function(){
+					internalFile.settings.peelReturnSpeed = Math.min(0,input_peelReturnSpeed.value);
+				}
+
+				input_exposureTime.oninput = function(){
+					internalFile.layers[slider.value].exposureTime = Math.min(0,input_exposureTime.value);
+				}
+				input_lightOffTime.oninput = function(){
+					internalFile.layers[slider.value].lightOffTime = Math.min(0,input_lightOffTime.value);
+				}
+				input_layerHeight.oninput = function(){
+					internalFile.layers[slider.value].layerHeight = Math.min(0,input_layerHeight.value);
+				}
+
+			}
+
+			function updatePerLayerInputs(layerIndex){
+				input_exposureTime = document.getElementById("input_exposureTime");
+				input_lightOffTime = document.getElementById("input_lightOffTime");
+				input_layerHeight = document.getElementById("input_layerHeight");
+				input_exposureTime.value = internalFile.layers[layerIndex].exposureTime;
+				input_lightOffTime.value = internalFile.layers[layerIndex].lightOffTime;
+				input_layerHeight.value = internalFile.layers[layerIndex].layerHeight;
+			}
+
+			function submit(){
+				if(internalFileLoaded){
+					switch(document.getElementById("output_fileFormat").value){
+						case "pws": savePwsFile(internalFile); break;
+						case "photons": savePhotonsFile(internalFile); break;
+						case "photon": savePhotonFile(internalFile); break;
+						case "cbddlp": savePhotonFile(internalFile, true); break;
+					}
+				}
+			}
+
+			function saveByteArray(array, name, ending){
+				// supply ending as a string with the ., so ".photons" or ".pws" etc.
+				link = document.createElement( 'a' );
+				link.style.display = 'none';
+				document.body.appendChild( link );
+				blob = new Blob( [ array ], { type: 'application/octet-binary' } );
+				link.href = URL.createObjectURL( blob );
+				link.download =  name + ending;
+				link.click();
+			}
+
+		 	var internalFile = {};
+			var internalFileLoaded = false;
+
+			function onFileSelected(evt) {
+				let files = evt.target.files;
+				if (files.length == 1) {
+					fname = evt.target.files[0].name;
+					fileExtension = fname.slice((fname.lastIndexOf(".") - 1 >>> 0) + 2);
+					let r = new FileReader();
+					r.onload = function(event) {
+						let d = new DataView(event.target.result);
+						switch(fileExtension){
+						case "photons" : internalFile = readPhotonsFile(d); break;
+						case "photon": case "cbddlp" : internalFile = readPhotonFile(d); break;
+						case "pws" : internalFile = readPwsFile(d); break;
+						}
+						internalFile.settings.name = fname.slice(0, fname.lastIndexOf("."));
+						console.log(internalFile);
+						internalFileLoaded = true;
+						buildPreview(internalFile);
+						setInputValues();
+						drawLayerPreview(0);
+
+					};
+					r.readAsArrayBuffer(files[0]);
+				}
+			}
+
+		</script>
 
 	</div>
 </body>
-
 </html>
